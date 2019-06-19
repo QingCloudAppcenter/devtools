@@ -1,0 +1,29 @@
+---
+- name: disable apt auto upgrade
+  systemd:
+    name: "{{ svc_name }}"
+    state: stopped
+    masked: yes
+  loop:
+  - apt-daily.timer
+  - apt-daily.service
+  - apt-daily-upgrade.timer
+  - apt-daily-upgrade.service
+  loop_control:
+    loop_var: svc_name
+
+- name: copy apt sources
+  copy:
+    src: files/{{ path }}
+    dest: /{{ path }}
+  loop:
+    - etc/apt/sources.list.d/tsinghua.list
+  loop_control:
+    loop_var: path
+
+- name: update apt
+  apt:
+    update_cache: yes
+
+- name: fix apt issues
+  shell: dpkg --configure -a

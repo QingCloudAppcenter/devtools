@@ -1,0 +1,47 @@
+---
+- name: set up devtool
+  hosts: all
+  strategy: free
+  vars:
+    target_env: "{{ lookup('env', 'target') }}"
+  vars_files:
+    - /root/.qcacode
+
+  tasks:
+
+  - name: set up confd.toml
+    copy:
+      src: files/etc/confd/confd.toml
+      dest: /etc/confd/confd.toml
+      owner: root
+      group: root
+    when: target_env == 'dev'
+
+  - name: start confd for dev
+    systemd:
+      name: confd
+      state: started
+      enabled: yes
+      masked: no
+    when: target_env == 'dev'
+
+  - name: remove SSH keys for production
+    file:
+      path: /root/.ssh
+      state: absent
+    when: target_env != 'dev'
+
+  - name: disable OpenSSH server
+    systemd:
+      name: ssh
+      state: stopped
+      enabled: no
+      masked: yes
+    when: target_env != 'dev'
+
+  - name: clean up
+    shell: |
+      >/var/log/syslog
+      >~/.bash_history && history -c
+    args:
+      executable: /bin/bash

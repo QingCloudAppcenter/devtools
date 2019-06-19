@@ -1,0 +1,8 @@
+confdir = "/etc/confd"
+backend = "metad"
+nodes = ['192.168.2.2:8080']
+prefix = "/self"
+watch = true
+scheme = "http"
+verbose = true
+log-level = "debug"

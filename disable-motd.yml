@@ -1,0 +1,6 @@
+---
+- name: remove welcome messages after SSH login to save time
+  file:
+    path: /home/ubuntu/.hushlogin
+    owner: ubuntu
+    state: touch

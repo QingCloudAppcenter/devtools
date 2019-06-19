@@ -1,0 +1,8 @@
+/data/appctl/logs/appctl.log {
+  weekly
+  maxsize 2M
+  rotate 50
+  missingok
+  notifempty
+  endscript
+}

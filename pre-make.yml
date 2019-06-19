@@ -1,0 +1,44 @@
+---
+- name: set up password
+  hosts: all
+  strategy: free
+  vars:
+    target_env: "{{ lookup('env', 'target') }}"
+  vars_files:
+    - /root/.qcacode
+
+  tasks:
+  - name: common setup
+    include_tasks: "{{ item }}.yml"
+    with_items:
+    - setup-apt
+    - disable-motd
+
+  - name: stop confd
+    systemd:
+      name: confd
+      state: stopped
+    when: target_env == 'dev'
+    ignore_errors: True
+
+  - name: set password
+    user:
+      name: "{{ username }}"
+      password: "{{ adminPwd | password_hash('sha512') }}"
+    loop:
+    - root
+    - ubuntu
+    loop_control:
+      loop_var: username
+
+  - name: prepare key dir
+    file:
+      path: /root/.ssh
+      state: directory
+    when: target_env == 'dev'
+
+  - name: set up pub key for developer
+    lineinfile:
+      path: /root/.ssh/authorized_keys
+      line: "{{ pubkey }}"
+    when: target_env == 'dev'
