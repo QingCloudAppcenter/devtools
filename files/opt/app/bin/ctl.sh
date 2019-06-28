@@ -15,8 +15,7 @@ set -eo pipefail
 . /opt/app/bin/.env
 
 # Error codes
-EC_DEFAULT=1          # default
-EC_RETRY_FAILED=2
+EC_CHECK_PROTO_ERR=130
 
 command=$1
 args="${@:2}"
@@ -31,7 +30,7 @@ retry() {
   local interval=$2
   local stopCode=$3
   local cmd="${@:4}"
-  local retCode=$EC_RETRY_FAILED
+  local retCode=0
   while [ $tried -lt $maxAttempts ]; do
     $cmd && return 0 || {
       retCode=$?
@@ -52,12 +51,12 @@ execute() {
   $cmd ${@:2}
 }
 
-reverseSvcNames() {
-  echo $svcNames | tr ' ' '\n' | tac | tr '\n' ' '
-}
-
-svcsctl() {
-  local svcName; for svcName in $svcNames; do systemctl $@ $svcName; done
+getServices() {
+  if [ "$1" = "-a" ]; then
+    echo $SERVICES
+  else
+    echo $SERVICES | xargs -n1 | awk -F/ '$2=="true"'
+  fi
 }
 
 _init() {
@@ -66,20 +65,27 @@ _init() {
 
   rm -rf /data/lost+found
 
-  svcsctl unmask -q
+  local svc; for svc in $(getServices -a); do
+    systemctl unmask -q ${svc%%/*}
+  done
 }
 
-checkSvcs() {
-  svcsctl is-active -q
+checkSvc() {
+  systemctl is-active -q $1
 }
 
-checkHttpStatus() {
-  local host=${1:-$MY_IP} port=${2:-80}
-  local code="$(curl -s -o /dev/null -w "%{http_code}" $host:$port)"
-  [[ "$code" =~ ^(200|302|401|403|404)$ ]] || {
-    log "HTTP status check failed to $host:$port: code=$code."
-    return 5
-  }
+checkEndpoint() {
+  local host=$MY_IP proto=${1%:*} port=${1#*:}
+  if [ "$proto" = "tcp" ]; then
+    nc -w5 $host $port
+  elif [ "$proto" = "udp" ]; then
+    nc -u -q5 -w5 $host $port
+  elif [ "$proto" = "http" ]; then
+    local code="$(curl -s -o /dev/null -w "%{http_code}" $host:$port)"
+    [[ "$code" =~ ^(200|302|401|403|404)$ ]]
+  else
+    return $EC_CHECK_PROTO_ERR
+  fi
 }
 
 checkHttpStatuses() {
@@ -87,18 +93,31 @@ checkHttpStatuses() {
 }
 
 _check() {
-  checkSvcs
-  checkHttpStatuses
+  local svc; for svc in $(getServices); do
+    checkSvc ${svc%%/*}
+    local endpoints=$(echo $svc | awk -F/ '{print $3}')
+    local endpoint; for endpoint in ${endpoints//,/ }; do
+      checkEndpoint $endpoint
+    done
+  done
+}
+
+isInitialized() {
+  local svcs="$(getServices -a)"
+  [ "$(systemctl is-enabled -q ${svcs%%/*})" = "disabled" ]
 }
 
 _start() {
-  svcsctl is-enabled -q || execute init
-  svcsctl start
-  retry ${svcStartTimeout:-120} 1 0 execute check
+  isInitialized || execute init
+  local svc; for svc in $(getServices); do
+    systemctl start ${svc%%/*}
+  done
 }
 
 _stop() {
-  svcNames="$(reverseSvcNames)" svcsctl stop
+  local svc; for svc in $(getServices -a | xargs -n1 | tac); do
+    systemctl stop ${svc%%/*}
+  done
 }
 
 _restart() {
@@ -110,7 +129,7 @@ _revive() {
 }
 
 _update() {
-  if [ "$(systemctl is-enabled $MY_ROLE)" = "disabled" ]; then execute restart; fi # only update when unmasked
+  if isInitialized; then execute restart; fi # only update when unmasked
 }
 
 . /opt/app/bin/role.sh
