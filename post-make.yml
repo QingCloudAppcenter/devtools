@@ -18,11 +18,10 @@
     when: target_env == 'dev'
 
   - name: start confd for dev
-    systemd:
+    service:
       name: confd
       state: started
       enabled: yes
-      masked: no
     when: target_env == 'dev'
 
   - name: remove SSH keys for production

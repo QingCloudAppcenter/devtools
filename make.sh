@@ -3,10 +3,12 @@
 set -eo pipefail
 
 app=${1?specify app name}
+baseDir=/root/workspace/apps
+appDir=$baseDir/$app
 plays="
-/root/workspace/apps/base/pre-make.yml
-/root/workspace/apps/$app/ansible/make.yml
-/root/workspace/apps/base/post-make.yml
+$baseDir/base/pre-make.yml
+$appDir/ansible/make.yml
+$baseDir/base/post-make.yml
 "
 
-for play in $plays; do target=${2-dev} ansible-playbook -i hosts $play; done
+for play in $plays; do target=${2-dev} ansible-playbook -i $appDir/ansible/hosts $play; done

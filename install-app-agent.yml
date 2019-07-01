@@ -1,0 +1,31 @@
+---
+- name: prepare directories
+  file:
+    path: "/tmp/app-agent"
+    state: directory
+
+- name: download reusable binaries locally
+  get_url:
+    url: "https://github.com/QingCloudAppcenter/AppcenterAgent/releases/download/{{ app_agent_version }}/app-agent-linux-amd64.tar.gz"
+    dest: "files/tmp/app-agent-{{ app_agent_version }}.tgz"
+  delegate_to: localhost
+
+- name: extract binary
+  unarchive:
+    src: "files/tmp/app-agent-{{ app_agent_version }}.tgz"
+    dest: "/tmp/app-agent"
+    creates: "/tmp/app-agent/bin"
+    extra_opts: [ --strip-components=1 ]
+
+- name: install app agent
+  raw: |
+    cd /tmp/app-agent
+    ./install.sh
+  args:
+    creates: /opt/qingcloud/app-agent/bin/confd
+
+- name: adjust logrotate
+  replace:
+    path: /etc/logrotate.d/app-agent
+    regexp: '^(\s+size).*'
+    replace: '\1 2M'

@@ -1,5 +1,5 @@
 ---
-- name: set up password
+- name: pre-make tasks
   hosts: all
   strategy: free
   vars:
@@ -11,11 +11,12 @@
   - name: common setup
     include_tasks: "{{ item }}.yml"
     with_items:
-    - setup-apt
+    # - setup-apt
     - disable-motd
+    - install-app-agent
 
   - name: stop confd
-    systemd:
+    service:
       name: confd
       state: stopped
     when: target_env == 'dev'
