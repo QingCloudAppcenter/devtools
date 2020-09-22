@@ -25,18 +25,21 @@
     when: target_env == 'dev'
 
   - name: remove SSH keys for production
-    file:
-      path: /root/.ssh
-      state: absent
+    copy:
+      dest: /root/.ssh/authorized_keys
+      content: ''
+      force: yes
     when: target_env != 'dev'
 
-  - name: disable OpenSSH server
+  - name: refresh systemd conf
     systemd:
-      name: ssh
-      state: stopped
-      enabled: no
-      masked: yes
-    when: target_env != 'dev'
+      daemon_reload: yes
+    when: target_env == 'dev'
+
+  - name: clear apt
+    apt:
+      autoclean: yes
+      autoremove: yes
 
   - name: clean up
     shell: |
